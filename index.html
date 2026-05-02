@@ -463,7 +463,7 @@
 // NOTE: Replace CLIENT_ID with your Google OAuth 2.0 client ID
 // Get one free at console.cloud.google.com → APIs & Services → Credentials
 // Authorized origins: add your hosted domain (or http://localhost for local testing)
-const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID_HERE';
+const GOOGLE_CLIENT_ID = '716790622479-jus06skpr00jncvikn8q26m819tgq18i.apps.googleusercontent.com';
 const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.send';
 // ── State ─────────────────────────────────────────────────────────────────────
 let state = {
@@ -528,7 +528,7 @@ function saveSetup() {
 }
 // ── Gmail OAuth ───────────────────────────────────────────────────────────────
 function connectGmail() {
-  if (GOOGLE_CLIENT_ID === 'YOUR_GOOGLE_CLIENT_ID_HERE') {
+  if (GOOGLE_CLIENT_ID === '716790622479-jus06skpr00jncvikn8q26m819tgq18i.apps.googleusercontent.com') {
     // Demo mode — simulate connection
     state.gmailToken = 'DEMO_TOKEN';
     state.gmailEmail = 'jason.r.copeland@gmail.com';

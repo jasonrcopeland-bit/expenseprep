@@ -631,7 +631,7 @@ async function scanReceipt(file) {
         'anthropic-dangerous-direct-browser-access': 'true',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-opus-4-5',
         max_tokens: 1000,
         messages: [{
           role: 'user',
@@ -664,16 +664,26 @@ Return ONLY valid JSON, no markdown:
       })
     });
     const data = await resp.json();
+    if (!resp.ok) {
+      const errMsg = data.error?.message || `API error ${resp.status}`;
+      populateReview(file, {
+        merchant: '', date: '', amount: null,
+        category: 'Other', splitCharge: false, splitAmounts: [],
+        confidence: 'low', confidenceNote: `AI error: ${errMsg}`
+      });
+      showToast('AI error: ' + errMsg, 'error');
+      return;
+    }
     const raw  = data.content?.find(b => b.type === 'text')?.text || '{}';
     const extracted = JSON.parse(raw.replace(/```json|```/g, '').trim());
     populateReview(file, extracted);
   } catch(err) {
-    // Fallback — let user fill in manually
     populateReview(file, {
       merchant: '', date: '', amount: null,
-      category: 'Other', splitCharge: false,
-      confidence: 'low', confidenceNote: 'Could not read receipt — please fill in manually'
+      category: 'Other', splitCharge: false, splitAmounts: [],
+      confidence: 'low', confidenceNote: 'AI error: ' + err.message
     });
+    showToast('AI error: ' + err.message, 'error');
   }
 }
 function toBase64(file) {

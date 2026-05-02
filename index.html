@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ExpensePrep — Receipt Sender</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&family=Mulish:wght@300;400;500;600&display=swap');
   :root {
@@ -694,6 +695,41 @@ function toBase64(file) {
     r.readAsDataURL(file);
   });
 }
+async function imageToPdfBlob(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const { jsPDF } = window.jspdf;
+        const isPortrait = img.height >= img.width;
+        const doc = new jsPDF({
+          orientation: isPortrait ? 'portrait' : 'landscape',
+          unit: 'mm',
+          format: 'a4',
+        });
+        const pageW = doc.internal.pageSize.getWidth();
+        const pageH = doc.internal.pageSize.getHeight();
+        const margin = 10;
+        const maxW = pageW - margin * 2;
+        const maxH = pageH - margin * 2;
+        const ratio = img.width / img.height;
+        let w = maxW;
+        let h = w / ratio;
+        if (h > maxH) { h = maxH; w = h * ratio; }
+        const x = (pageW - w) / 2;
+        const y = (pageH - h) / 2;
+        const fmt = file.type === 'image/png' ? 'PNG' : 'JPEG';
+        doc.addImage(e.target.result, fmt, x, y, w, h);
+        resolve(doc.output('blob'));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 // ── Review population ─────────────────────────────────────────────────────────
 function populateReview(file, data) {
   state.currentData = data;
@@ -752,8 +788,12 @@ async function sendReceipt() {
       showSuccess(filename);
       return;
     }
-    // Real send
-    const base64File = await toBase64(file);
+    // Real send — convert image to proper PDF if needed
+    let sendFile = file;
+    if (file.type.startsWith('image/')) {
+      sendFile = await imageToPdfBlob(file);
+    }
+    const base64File = await toBase64(sendFile);
     const category   = document.getElementById('fieldCategory').value;
     const merchant   = document.getElementById('fieldMerchant').value;
     const amount     = document.getElementById('fieldAmount').value;
@@ -772,7 +812,7 @@ async function sendReceipt() {
     const mimeMessage = [
       `From: ${state.gmailEmail}`,
       `To: ${state.workEmail}`,
-      `Subject: EXPENSE RECEIPT — ${filename}`,
+      `Subject: EXPENSE RECEIPT - ${filename}`,
       `MIME-Version: 1.0`,
       `Content-Type: multipart/mixed; boundary="${boundary}"`,
       ``,

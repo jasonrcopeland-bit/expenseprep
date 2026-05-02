@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ExpensePrep — Receipt Sender</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&family=Mulish:wght@300;400;500;600&display=swap');
+  :root {
+    --bg:        #07111F;
+    --surface:   #0D1E33;
+    --surface2:  #122640;
+    --border:    #1B3555;
+    --accent:    #2B7FFF;
+    --accent2:   #00C6A2;
+    --warn:      #F59E0B;
+    --danger:    #EF4444;
+    --text:      #E2EAF4;
+    --muted:     #5A7A99;
+    --mono:      'DM Mono', monospace;
+    --sans:      'Mulish', sans-serif;
+    --display:   'Syne', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); }
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  /* ── layout ── */
+  .shell {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    background: rgba(7,17,31,0.92);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .logo { display: flex; align-items: center; gap: 12px; }
+  .logo-icon {
+    width: 38px; height: 38px; border-radius: 11px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex; align-items: center; justify-content: center; font-size: 20px;
+  }
+  .logo-text { font-family: var(--display); font-size: 17px; font-weight: 700; letter-spacing: -0.02em; }
+  .logo-sub { font-family: var(--mono); font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+  .header-right { display: flex; align-items: center; gap: 10px; }
+  .settings-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-family: var(--sans);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .settings-btn:hover { border-color: var(--accent); color: var(--text); }
+  .gmail-badge {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 20px; padding: 5px 12px; font-size: 12px;
+  }
+  .gmail-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; }
+  .gmail-dot.off { background: var(--danger); }
+  main { flex: 1; padding: 32px 24px; max-width: 760px; margin: 0 auto; width: 100%; }
+  /* ── screens ── */
+  .screen { display: none; }
+  .screen.active { display: block; animation: fadeUp 0.22s ease; }
+  @keyframes fadeUp { from { opacity:0; transform:translateY(10px) } to { opacity:1; transform:translateY(0) } }
+  /* ── setup screen ── */
+  .setup-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 40px;
+    max-width: 480px;
+    margin: 60px auto 0;
+  }
+  .setup-title { font-family: var(--display); font-size: 24px; font-weight: 700; margin-bottom: 6px; }
+  .setup-sub { color: var(--muted); font-size: 14px; margin-bottom: 32px; line-height: 1.5; }
+  .field { margin-bottom: 20px; }
+  .field label { display: block; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 7px; }
+  .field input {
+    width: 100%; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 10px; padding: 11px 14px; color: var(--text);
+    font-family: var(--sans); font-size: 14px; outline: none; transition: border 0.15s;
+  }
+  .field input:focus { border-color: var(--accent); }
+  .field .hint { font-size: 11px; color: var(--muted); margin-top: 5px; }
+  .divider { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+  .gmail-connect-btn {
+    width: 100%; padding: 13px;
+    background: #fff; color: #1a1a1a;
+    border: none; border-radius: 10px;
+    font-family: var(--sans); font-size: 14px; font-weight: 600;
+    cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;
+    transition: all 0.15s; margin-bottom: 16px;
+  }
+  .gmail-connect-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(255,255,255,0.12); }
+  .gmail-connect-btn img { width: 20px; height: 20px; }
+  .primary-btn {
+    width: 100%; padding: 13px;
+    background: linear-gradient(135deg, var(--accent), #1a6de8);
+    color: #fff; border: none; border-radius: 10px;
+    font-family: var(--display); font-size: 15px; font-weight: 600;
+    cursor: pointer; transition: all 0.15s; letter-spacing: -0.01em;
+  }
+  .primary-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 24px rgba(43,127,255,0.35); }
+  .primary-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+  /* ── upload screen ── */
+  .drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: 20px; padding: 56px 32px;
+    text-align: center; cursor: pointer;
+    transition: all 0.2s;
+    background: rgba(255,255,255,0.01);
+    position: relative;
+  }
+  .drop-zone:hover, .drop-zone.drag { border-color: var(--accent); background: rgba(43,127,255,0.05); }
+  .drop-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .drop-icon { font-size: 48px; margin-bottom: 14px; display: block; }
+  .drop-title { font-family: var(--display); font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+  .drop-sub { color: var(--muted); font-size: 13px; line-height: 1.6; }
+  .or-row { display: flex; align-items: center; gap: 14px; margin: 20px 0; }
+  .or-line { flex: 1; border: none; border-top: 1px solid var(--border); }
+  .or-text { color: var(--muted); font-size: 12px; }
+  .camera-btn {
+    width: 100%; padding: 13px;
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); border-radius: 12px;
+    font-family: var(--sans); font-size: 14px; font-weight: 500;
+    cursor: pointer; transition: all 0.15s;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .camera-btn:hover { border-color: var(--accent); background: rgba(43,127,255,0.08); }
+  /* ── review screen ── */
+  .review-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+  @media(max-width:600px) { .review-grid { grid-template-columns: 1fr; } }
+  .receipt-preview {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 16px; overflow: hidden;
+  }
+  .receipt-preview img { width: 100%; display: block; }
+  .receipt-preview .pdf-placeholder {
+    padding: 60px 20px; text-align: center; font-size: 48px;
+  }
+  .preview-meta { padding: 14px 16px; border-top: 1px solid var(--border); }
+  .preview-meta .orig-name { font-family: var(--mono); font-size: 11px; color: var(--muted); word-break: break-all; }
+  .review-panel {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 16px; padding: 24px;
+  }
+  .review-title { font-family: var(--display); font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+  .review-sub { font-size: 12px; color: var(--muted); margin-bottom: 20px; }
+  .confidence-bar {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--bg); border-radius: 8px; padding: 8px 12px;
+    margin-bottom: 16px; font-size: 12px;
+  }
+  .conf-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .conf-high { background: #22c55e; }
+  .conf-med  { background: var(--warn); }
+  .conf-low  { background: var(--danger); }
+  .filename-preview {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 14px; margin-bottom: 16px;
+  }
+  .filename-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 5px; }
+  .filename-value { font-family: var(--mono); font-size: 13px; color: var(--accent2); word-break: break-all; }
+  .split-notice {
+    background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3);
+    border-radius: 10px; padding: 12px 14px; margin-bottom: 16px; font-size: 12px; line-height: 1.5;
+  }
+  .split-notice strong { color: var(--warn); display: block; margin-bottom: 4px; }
+  .send-btn {
+    width: 100%; padding: 14px;
+    background: linear-gradient(135deg, var(--accent2), #00a884);
+    color: #fff; border: none; border-radius: 12px;
+    font-family: var(--display); font-size: 15px; font-weight: 700;
+    cursor: pointer; transition: all 0.15s; letter-spacing: -0.01em;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .send-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 24px rgba(0,198,162,0.35); }
+  .send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+  .another-btn {
+    width: 100%; padding: 11px; margin-top: 10px;
+    background: transparent; border: 1px solid var(--border);
+    color: var(--muted); border-radius: 12px;
+    font-family: var(--sans); font-size: 13px;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .another-btn:hover { border-color: var(--accent); color: var(--text); }
+  /* ── success screen ── */
+  .success-card {
+    background: var(--surface); border: 1px solid rgba(0,198,162,0.3);
+    border-radius: 20px; padding: 48px 40px; text-align: center;
+    max-width: 440px; margin: 60px auto 0;
+  }
+  .success-icon { font-size: 56px; margin-bottom: 16px; display: block; }
+  .success-title { font-family: var(--display); font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+  .success-sub { color: var(--muted); font-size: 14px; margin-bottom: 24px; line-height: 1.6; }
+  .success-filename {
+    background: var(--bg); border-radius: 10px; padding: 12px 16px;
+    font-family: var(--mono); font-size: 13px; color: var(--accent2);
+    margin-bottom: 28px; word-break: break-all;
+  }
+  /* ── scanning overlay ── */
+  .scanning {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 20px; padding: 56px 40px; text-align: center;
+    max-width: 420px; margin: 60px auto 0;
+  }
+  .scan-spinner {
+    width: 52px; height: 52px; border: 3px solid var(--border);
+    border-top-color: var(--accent); border-radius: 50%;
+    animation: spin 0.8s linear infinite; margin: 0 auto 20px;
+  }
+  @keyframes spin { to { transform: rotate(360deg) } }
+  .scan-title { font-family: var(--display); font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+  .scan-sub { color: var(--muted); font-size: 13px; }
+  /* ── sending overlay ── */
+  .sending-overlay {
+    position: fixed; inset: 0; background: rgba(7,17,31,0.85);
+    backdrop-filter: blur(8px); display: none;
+    align-items: center; justify-content: center; z-index: 200;
+  }
+  .sending-overlay.active { display: flex; }
+  .sending-box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 20px; padding: 48px; text-align: center; max-width: 360px;
+  }
+  .send-spinner {
+    width: 48px; height: 48px; border: 3px solid var(--border);
+    border-top-color: var(--accent2); border-radius: 50%;
+    animation: spin 0.8s linear infinite; margin: 0 auto 20px;
+  }
+  /* ── toast ── */
+  .toast {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(80px);
+    background: #1a1a2e; border: 1px solid var(--border);
+    border-radius: 30px; padding: 12px 24px;
+    font-size: 13px; font-weight: 500; z-index: 300;
+    transition: transform 0.25s cubic-bezier(0.34,1.56,0.64,1);
+    white-space: nowrap;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.success { border-color: rgba(0,198,162,0.4); color: var(--accent2); }
+  .toast.error   { border-color: rgba(239,68,68,0.4);  color: var(--danger); }
+  /* ── settings modal ── */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(7,17,31,0.8);
+    backdrop-filter: blur(8px); display: none;
+    align-items: center; justify-content: center; z-index: 200;
+  }
+  .modal-overlay.active { display: flex; animation: fadeUp 0.18s ease; }
+  .modal-box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 20px; padding: 32px; width: 100%; max-width: 440px; margin: 20px;
+  }
+  .modal-title { font-family: var(--display); font-size: 18px; font-weight: 700; margin-bottom: 20px; }
+  .modal-actions { display: flex; gap: 10px; margin-top: 24px; }
+  .modal-save {
+    flex: 1; padding: 11px;
+    background: linear-gradient(135deg, var(--accent), #1a6de8);
+    color: #fff; border: none; border-radius: 10px;
+    font-family: var(--sans); font-weight: 600; font-size: 14px; cursor: pointer;
+  }
+  .modal-cancel {
+    padding: 11px 20px; background: transparent;
+    border: 1px solid var(--border); color: var(--muted);
+    border-radius: 10px; font-family: var(--sans); font-size: 14px; cursor: pointer;
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <header>
+    <div class="logo">
+      <div class="logo-icon">🧾</div>
+      <div>
+        <div class="logo-text">ExpensePrep</div>
+        <div class="logo-sub">Receipt Sender</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="gmail-badge" id="gmailBadge">
+        <div class="gmail-dot off" id="gmailDot"></div>
+        <span id="gmailLabel">Not connected</span>
+      </div>
+      <button class="settings-btn" onclick="openSettings()">⚙ Settings</button>
+    </div>
+  </header>
+  <main>
+    <!-- SETUP SCREEN -->
+    <div class="screen active" id="screenSetup">
+      <div class="setup-card">
+        <div class="setup-title">Welcome to ExpensePrep</div>
+        <div class="setup-sub">Set up once — your settings are saved to this device. Takes about 2 minutes.</div>
+        <div class="field">
+          <label>Your Work Email</label>
+          <input type="email" id="setupWorkEmail" placeholder="you@yourcompany.com" />
+          <div class="hint">Receipts will be sent here automatically after you approve the filename.</div>
+        </div>
+        <div class="field">
+          <label>Your Name (for email signature)</label>
+          <input type="text" id="setupName" placeholder="Jason Copeland" />
+        </div>
+        <hr class="divider">
+        <button class="gmail-connect-btn" onclick="connectGmail()">
+          <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 5C13.5 5 5 13.5 5 24S13.5 43 24 43s19-8.5 19-19S34.5 5 24 5zm0 34C15.2 39 8 31.8 8 23S15.2 7 24 7s16 7.2 16 16-7.2 16-16 16z"/><path fill="#EA4335" d="M8.6 15.6L24 24l15.4-8.4C37.5 12.1 31.1 9 24 9S10.5 12.1 8.6 15.6z"/><path fill="#34A853" d="M39 16.1L24 24.5V41c4.9-1.6 9-5 11.6-9.4L39 16.1z"/><path fill="#4285F4" d="M9 16.1l-1.4 15.5C10 35.9 14.1 39.3 19 41V24.5L9 16.1z"/><path fill="#FBBC05" d="M24 9c-7.1 0-13.5 3.1-15.4 6.6L19 24.5V41c1.6.4 3.3.6 5 .6V9z"/></svg>
+          Connect Gmail Account
+        </button>
+        <div class="hint" style="text-align:center; margin-bottom:20px; font-size:12px;">
+          Gmail is used only to send receipts to your work email. We never read your inbox.
+        </div>
+        <button class="primary-btn" id="setupSaveBtn" onclick="saveSetup()">Save &amp; Get Started →</button>
+      </div>
+    </div>
+    <!-- UPLOAD SCREEN -->
+    <div class="screen" id="screenUpload">
+      <div class="drop-zone" id="dropZone">
+        <input type="file" id="fileInput" accept="image/*,application/pdf" onchange="handleFile(this.files[0])">
+        <span class="drop-icon">📤</span>
+        <div class="drop-title">Drop your receipt here</div>
+        <div class="drop-sub">
+          JPG / PNG from your camera roll &nbsp;·&nbsp; PDF saved from email<br>
+          AI will read merchant, date &amp; amount — you approve before sending
+        </div>
+      </div>
+      <div class="or-row">
+        <div class="or-line"></div>
+        <span class="or-text">or</span>
+        <div class="or-line"></div>
+      </div>
+      <button class="camera-btn" onclick="document.getElementById('cameraInput').click()">
+        📷 &nbsp; Take a Photo Now
+      </button>
+      <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none" onchange="handleFile(this.files[0])">
+    </div>
+    <!-- SCANNING SCREEN -->
+    <div class="screen" id="screenScanning">
+      <div class="scanning">
+        <div class="scan-spinner"></div>
+        <div class="scan-title">Reading your receipt…</div>
+        <div class="scan-sub">AI is extracting merchant, date, and amount.<br>Takes about 5 seconds.</div>
+      </div>
+    </div>
+    <!-- REVIEW SCREEN -->
+    <div class="screen" id="screenReview">
+      <div style="font-family:'Syne',sans-serif; font-size:22px; font-weight:700; margin-bottom:6px;">Review &amp; Approve</div>
+      <div style="color:var(--muted); font-size:13px; margin-bottom:24px;">Edit any field if the AI got it wrong, then send.</div>
+      <div class="review-grid">
+        <!-- Preview -->
+        <div class="receipt-preview">
+          <img id="previewImg" src="" alt="receipt" style="display:none">
+          <div class="pdf-placeholder" id="previewPdf" style="display:none">📄</div>
+          <div class="preview-meta">
+            <div class="orig-name" id="origFileName"></div>
+          </div>
+        </div>
+        <!-- Edit panel -->
+        <div class="review-panel">
+          <div class="review-title">Extracted Details</div>
+          <div class="review-sub">AI confidence: <span id="confLabel" style="font-weight:600"></span></div>
+          <div class="confidence-bar">
+            <div class="conf-dot" id="confDot"></div>
+            <span id="confText" style="color:var(--muted)"></span>
+          </div>
+          <div class="field">
+            <label>Merchant</label>
+            <input type="text" id="fieldMerchant" oninput="updateFilename()">
+          </div>
+          <div class="field">
+            <label>Receipt Date</label>
+            <input type="date" id="fieldDate" oninput="updateFilename()">
+          </div>
+          <div class="field">
+            <label>Total Amount ($)</label>
+            <input type="number" step="0.01" id="fieldAmount" oninput="updateFilename()">
+          </div>
+          <div class="field">
+            <label>Category</label>
+            <select id="fieldCategory" style="width:100%; background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:11px 14px; color:var(--text); font-family:var(--sans); font-size:14px; outline:none;">
+              <option>Travel</option><option>Rideshare</option><option>Lodging</option>
+              <option>Meals</option><option>Transport</option><option>Office</option>
+              <option>Software</option><option>Other</option>
+            </select>
+          </div>
+          <div id="splitNotice" class="split-notice" style="display:none">
+            <strong>⚡ Split charge detected</strong>
+            This looks like a rideshare receipt with a separate tip. BofA Works will show two charges — link this receipt to both when filing.
+          </div>
+          <div class="filename-preview">
+            <div class="filename-label">File will be saved as</div>
+            <div class="filename-value" id="filenamePreview">—</div>
+          </div>
+          <button class="send-btn" id="sendBtn" onclick="sendReceipt()">
+            ✉️ &nbsp; Approve &amp; Send to Work Email
+          </button>
+          <button class="another-btn" onclick="goTo('screenUpload')">← Upload a different file</button>
+        </div>
+      </div>
+    </div>
+    <!-- SUCCESS SCREEN -->
+    <div class="screen" id="screenSuccess">
+      <div class="success-card">
+        <span class="success-icon">✅</span>
+        <div class="success-title">Receipt Sent!</div>
+        <div class="success-sub">
+          Sent to <strong id="successWorkEmail"></strong> via Gmail.<br>
+          Power Automate will pick it up and save it to OneDrive automatically.
+        </div>
+        <div class="success-filename" id="successFilename"></div>
+        <button class="primary-btn" onclick="goTo('screenUpload')">Send Another Receipt</button>
+      </div>
+    </div>
+  </main>
+</div>
+<!-- Sending overlay -->
+<div class="sending-overlay" id="sendingOverlay">
+  <div class="sending-box">
+    <div class="send-spinner"></div>
+    <div style="font-family:'Syne',sans-serif; font-size:17px; font-weight:700; margin-bottom:8px;">Sending…</div>
+    <div style="color:var(--muted); font-size:13px;">Emailing receipt to your work address via Gmail.</div>
+  </div>
+</div>
+<!-- Settings modal -->
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal-box">
+    <div class="modal-title">⚙ Settings</div>
+    <div class="field">
+      <label>Work Email</label>
+      <input type="email" id="settingsWorkEmail">
+    </div>
+    <div class="field">
+      <label>Your Name</label>
+      <input type="text" id="settingsName">
+    </div>
+    <div class="field" style="margin-bottom:0">
+      <label>Gmail Account</label>
+      <input type="email" id="settingsGmail" readonly style="color:var(--muted)">
+      <div class="hint"><a href="#" onclick="connectGmail(); return false;" style="color:var(--accent)">Reconnect Gmail</a></div>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeSettings()">Cancel</button>
+      <button class="modal-save" onclick="saveSettings()">Save Changes</button>
+    </div>
+  </div>
+</div>
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+<script>
+// ── Google OAuth config ───────────────────────────────────────────────────────
+// NOTE: Replace CLIENT_ID with your Google OAuth 2.0 client ID
+// Get one free at console.cloud.google.com → APIs & Services → Credentials
+// Authorized origins: add your hosted domain (or http://localhost for local testing)
+const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID_HERE';
+const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.send';
+// ── State ─────────────────────────────────────────────────────────────────────
+let state = {
+  workEmail:    '',
+  userName:     '',
+  gmailToken:   null,
+  gmailEmail:   '',
+  currentFile:  null,
+  currentData:  null,
+  isSetup:      false,
+};
+// ── Boot ──────────────────────────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  loadState();
+  if (state.isSetup) {
+    updateGmailBadge();
+    goTo('screenUpload');
+  } else {
+    // Pre-fill defaults for Jason
+    document.getElementById('setupWorkEmail').value = state.workEmail || 'jcopeland@coadvantage.com';
+    document.getElementById('setupName').value       = state.userName  || '';
+    goTo('screenSetup');
+  }
+  // Drag & drop
+  const dz = document.getElementById('dropZone');
+  dz.addEventListener('dragover',  (e) => { e.preventDefault(); dz.classList.add('drag'); });
+  dz.addEventListener('dragleave', ()  => dz.classList.remove('drag'));
+  dz.addEventListener('drop', (e) => {
+    e.preventDefault(); dz.classList.remove('drag');
+    const f = e.dataTransfer.files[0];
+    if (f) handleFile(f);
+  });
+});
+// ── Persist ───────────────────────────────────────────────────────────────────
+function saveState() {
+  try { localStorage.setItem('expenseprep_state', JSON.stringify(state)); } catch(e) {}
+}
+function loadState() {
+  try {
+    const s = localStorage.getItem('expenseprep_state');
+    if (s) state = { ...state, ...JSON.parse(s) };
+  } catch(e) {}
+}
+// ── Navigation ────────────────────────────────────────────────────────────────
+function goTo(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+// ── Setup ─────────────────────────────────────────────────────────────────────
+function saveSetup() {
+  const email = document.getElementById('setupWorkEmail').value.trim();
+  const name  = document.getElementById('setupName').value.trim();
+  if (!email) { showToast('Enter your work email first', 'error'); return; }
+  if (!state.gmailToken) { showToast('Connect your Gmail account first', 'error'); return; }
+  state.workEmail = email;
+  state.userName  = name;
+  state.isSetup   = true;
+  saveState();
+  updateGmailBadge();
+  showToast('Setup complete!', 'success');
+  goTo('screenUpload');
+}
+// ── Gmail OAuth ───────────────────────────────────────────────────────────────
+function connectGmail() {
+  if (GOOGLE_CLIENT_ID === 'YOUR_GOOGLE_CLIENT_ID_HERE') {
+    // Demo mode — simulate connection
+    state.gmailToken = 'DEMO_TOKEN';
+    state.gmailEmail = 'jason.r.copeland@gmail.com';
+    saveState();
+    updateGmailBadge();
+    showToast('Gmail connected (demo mode)', 'success');
+    // Update setup screen hint
+    const btn = document.querySelector('.gmail-connect-btn');
+    if (btn) btn.textContent = '✓ Gmail connected — jason.r.copeland@gmail.com';
+    return;
+  }
+  // Real OAuth flow
+  const params = new URLSearchParams({
+    client_id:     GOOGLE_CLIENT_ID,
+    redirect_uri:  window.location.origin + window.location.pathname,
+    response_type: 'token',
+    scope:         GMAIL_SCOPE,
+    prompt:        'select_account',
+  });
+  const popup = window.open(
+    `https://accounts.google.com/o/oauth2/v2/auth?${params}`,
+    'gmail_auth', 'width=500,height=600'
+  );
+  window.addEventListener('message', function handler(e) {
+    if (e.data?.type === 'gmail_token') {
+      state.gmailToken = e.data.token;
+      state.gmailEmail = e.data.email;
+      saveState();
+      updateGmailBadge();
+      showToast('Gmail connected!', 'success');
+      window.removeEventListener('message', handler);
+    }
+  });
+}
+// Handle OAuth redirect (if same-page redirect)
+(function handleOAuthRedirect() {
+  const hash = window.location.hash;
+  if (hash.includes('access_token')) {
+    const params = new URLSearchParams(hash.slice(1));
+    const token = params.get('access_token');
+    if (token) {
+      state.gmailToken = token;
+      saveState();
+      if (window.opener) {
+        window.opener.postMessage({ type: 'gmail_token', token }, '*');
+        window.close();
+      }
+    }
+  }
+})();
+function updateGmailBadge() {
+  const dot   = document.getElementById('gmailDot');
+  const label = document.getElementById('gmailLabel');
+  if (state.gmailToken) {
+    dot.className   = 'gmail-dot';
+    label.textContent = state.gmailEmail || 'Gmail connected';
+  } else {
+    dot.className   = 'gmail-dot off';
+    label.textContent = 'Gmail not connected';
+  }
+}
+// ── File handling ─────────────────────────────────────────────────────────────
+function handleFile(file) {
+  if (!file) return;
+  if (!file.type.startsWith('image/') && file.type !== 'application/pdf') {
+    showToast('Please upload a JPG, PNG, or PDF', 'error'); return;
+  }
+  state.currentFile = file;
+  goTo('screenScanning');
+  scanReceipt(file);
+}
+// ── AI Extraction ─────────────────────────────────────────────────────────────
+async function scanReceipt(file) {
+  const base64 = await toBase64(file);
+  const isPdf  = file.type === 'application/pdf';
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages: [{
+          role: 'user',
+          content: [
+            isPdf
+              ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }
+              : { type: 'image',    source: { type: 'base64', media_type: file.type,          data: base64 } },
+            {
+              type: 'text',
+              text: `Parse this expense receipt carefully.
+Key rules:
+- Uber/Lyft: base fare and tip are SEPARATE card charges even though shown on one receipt. Set splitCharge=true.
+- Use the receipt's printed date, not today's date.
+- Merchant name: clean and short (e.g. "Uber" not "Uber Technologies Inc BV")
+- Amount: the final total the card was charged (or sum of fare+tip for rideshare)
+Return ONLY valid JSON, no markdown:
+{
+  "merchant": "short clean name",
+  "date": "YYYY-MM-DD or empty string",
+  "amount": <number or null>,
+  "category": "one of: Travel, Rideshare, Lodging, Meals, Transport, Office, Software, Other",
+  "splitCharge": <true if rideshare with separate tip>,
+  "splitAmounts": [<fare>, <tip>] or [],
+  "confidence": "high | medium | low",
+  "confidenceNote": "brief reason if medium or low"
+}`
+            }
+          ]
+        }]
+      })
+    });
+    const data = await resp.json();
+    const raw  = data.content?.find(b => b.type === 'text')?.text || '{}';
+    const extracted = JSON.parse(raw.replace(/```json|```/g, '').trim());
+    populateReview(file, extracted);
+  } catch(err) {
+    // Fallback — let user fill in manually
+    populateReview(file, {
+      merchant: '', date: '', amount: null,
+      category: 'Other', splitCharge: false,
+      confidence: 'low', confidenceNote: 'Could not read receipt — please fill in manually'
+    });
+  }
+}
+function toBase64(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload  = () => res(r.result.split(',')[1]);
+    r.onerror = () => rej(new Error('Read failed'));
+    r.readAsDataURL(file);
+  });
+}
+// ── Review population ─────────────────────────────────────────────────────────
+function populateReview(file, data) {
+  state.currentData = data;
+  // Preview
+  if (file.type.startsWith('image/')) {
+    const img = document.getElementById('previewImg');
+    img.src = URL.createObjectURL(file);
+    img.style.display = 'block';
+    document.getElementById('previewPdf').style.display = 'none';
+  } else {
+    document.getElementById('previewImg').style.display = 'none';
+    document.getElementById('previewPdf').style.display = 'block';
+  }
+  document.getElementById('origFileName').textContent = 'Original: ' + file.name;
+  // Fields
+  document.getElementById('fieldMerchant').value  = data.merchant  || '';
+  document.getElementById('fieldDate').value       = data.date      || '';
+  document.getElementById('fieldAmount').value     = data.amount    || '';
+  document.getElementById('fieldCategory').value  = data.category  || 'Other';
+  // Confidence
+  const conf = data.confidence || 'low';
+  const dot  = document.getElementById('confDot');
+  dot.className = 'conf-dot conf-' + (conf === 'high' ? 'high' : conf === 'medium' ? 'med' : 'low');
+  document.getElementById('confLabel').textContent = conf.charAt(0).toUpperCase() + conf.slice(1);
+  document.getElementById('confText').textContent  = data.confidenceNote || (conf === 'high' ? 'All fields read successfully' : 'Review fields below');
+  // Split notice
+  document.getElementById('splitNotice').style.display = data.splitCharge ? 'block' : 'none';
+  updateFilename();
+  goTo('screenReview');
+}
+function updateFilename() {
+  const merchant = (document.getElementById('fieldMerchant').value || 'Unknown')
+    .trim().replace(/\s+/g, '-').replace(/[^a-zA-Z0-9\-]/g, '');
+  const date     = document.getElementById('fieldDate').value   || 'NoDate';
+  const amount   = document.getElementById('fieldAmount').value || '0.00';
+  const amtStr   = parseFloat(amount).toFixed(2);
+  const filename = `${date}_${merchant}_${amtStr}.pdf`;
+  document.getElementById('filenamePreview').textContent = filename;
+}
+function getFilename() {
+  return document.getElementById('filenamePreview').textContent;
+}
+// ── Send via Gmail API ────────────────────────────────────────────────────────
+async function sendReceipt() {
+  if (!state.gmailToken) {
+    showToast('Gmail not connected — go to Settings', 'error'); return;
+  }
+  const filename = getFilename();
+  const file     = state.currentFile;
+  document.getElementById('sendingOverlay').classList.add('active');
+  try {
+    // Demo mode
+    if (state.gmailToken === 'DEMO_TOKEN') {
+      await new Promise(r => setTimeout(r, 1800)); // simulate send
+      document.getElementById('sendingOverlay').classList.remove('active');
+      showSuccess(filename);
+      return;
+    }
+    // Real send
+    const base64File = await toBase64(file);
+    const category   = document.getElementById('fieldCategory').value;
+    const merchant   = document.getElementById('fieldMerchant').value;
+    const amount     = document.getElementById('fieldAmount').value;
+    const date       = document.getElementById('fieldDate').value;
+    const emailBody = [
+      `Expense Receipt — ${merchant}`,
+      ``,
+      `Amount:    $${parseFloat(amount).toFixed(2)}`,
+      `Date:      ${date}`,
+      `Category:  ${category}`,
+      ``,
+      `Sent via ExpensePrep`,
+      state.userName ? `— ${state.userName}` : '',
+    ].join('\n');
+    const boundary = 'expenseprep_boundary_' + Date.now();
+    const mimeMessage = [
+      `From: ${state.gmailEmail}`,
+      `To: ${state.workEmail}`,
+      `Subject: EXPENSE RECEIPT — ${filename}`,
+      `MIME-Version: 1.0`,
+      `Content-Type: multipart/mixed; boundary="${boundary}"`,
+      ``,
+      `--${boundary}`,
+      `Content-Type: text/plain; charset=utf-8`,
+      ``,
+      emailBody,
+      ``,
+      `--${boundary}`,
+      `Content-Type: application/pdf; name="${filename}"`,
+      `Content-Transfer-Encoding: base64`,
+      `Content-Disposition: attachment; filename="${filename}"`,
+      ``,
+      base64File,
+      ``,
+      `--${boundary}--`,
+    ].join('\r\n');
+    const encoded = btoa(unescape(encodeURIComponent(mimeMessage)))
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    const resp = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${state.gmailToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ raw: encoded }),
+    });
+    if (!resp.ok) {
+      const err = await resp.json();
+      // Token expired?
+      if (resp.status === 401) {
+        state.gmailToken = null;
+        saveState();
+        updateGmailBadge();
+        throw new Error('Gmail session expired — please reconnect in Settings');
+      }
+      throw new Error(err.error?.message || 'Gmail send failed');
+    }
+    document.getElementById('sendingOverlay').classList.remove('active');
+    showSuccess(filename);
+  } catch(err) {
+    document.getElementById('sendingOverlay').classList.remove('active');
+    showToast('Send failed: ' + err.message, 'error');
+  }
+}
+function showSuccess(filename) {
+  document.getElementById('successWorkEmail').textContent = state.workEmail;
+  document.getElementById('successFilename').textContent  = filename;
+  goTo('screenSuccess');
+  // Reset file input
+  document.getElementById('fileInput').value   = '';
+  document.getElementById('cameraInput').value = '';
+}
+// ── Settings modal ────────────────────────────────────────────────────────────
+function openSettings() {
+  document.getElementById('settingsWorkEmail').value = state.workEmail  || '';
+  document.getElementById('settingsName').value      = state.userName   || '';
+  document.getElementById('settingsGmail').value     = state.gmailEmail || 'Not connected';
+  document.getElementById('settingsModal').classList.add('active');
+}
+function closeSettings() {
+  document.getElementById('settingsModal').classList.remove('active');
+}
+function saveSettings() {
+  state.workEmail = document.getElementById('settingsWorkEmail').value.trim();
+  state.userName  = document.getElementById('settingsName').value.trim();
+  saveState();
+  closeSettings();
+  showToast('Settings saved', 'success');
+}
+// ── Toast ─────────────────────────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg, type = 'success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className   = `toast ${type} show`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
+}
+</script>
+</body>
+</html>

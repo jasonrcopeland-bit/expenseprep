@@ -445,10 +445,15 @@
       <label>Your Name</label>
       <input type="text" id="settingsName">
     </div>
-    <div class="field" style="margin-bottom:0">
+    <div class="field">
       <label>Gmail Account</label>
       <input type="email" id="settingsGmail" readonly style="color:var(--muted)">
       <div class="hint"><a href="#" onclick="connectGmail(); return false;" style="color:var(--accent)">Reconnect Gmail</a></div>
+    </div>
+    <div class="field" style="margin-bottom:0">
+      <label>Anthropic API Key <span style="color:var(--muted);font-weight:400">(for AI receipt reading)</span></label>
+      <input type="password" id="settingsAnthropicKey" placeholder="sk-ant-..." autocomplete="off">
+      <div class="hint">Get a free key at <a href="https://console.anthropic.com" target="_blank" style="color:var(--accent)">console.anthropic.com</a></div>
     </div>
     <div class="modal-actions">
       <button class="modal-cancel" onclick="closeSettings()">Cancel</button>
@@ -471,15 +476,49 @@ let state = {
   userName:     '',
   gmailToken:   null,
   gmailEmail:   '',
+  anthropicKey: '',
   currentFile:  null,
   currentData:  null,
   isSetup:      false,
 };
 // ── Boot ──────────────────────────────────────────────────────────────────────
-window.addEventListener('load', () => {
+window.addEventListener('load', async () => {
   loadState();
+
+  // Clear stale DEMO_TOKEN now that a real Client ID is configured
+  if (state.gmailToken === 'DEMO_TOKEN' && GOOGLE_CLIENT_ID !== 'YOUR_GOOGLE_CLIENT_ID_HERE') {
+    state.gmailToken = null;
+    state.gmailEmail = '';
+    saveState();
+  }
+
+  // Handle OAuth redirect return (works on all browsers)
+  const hash = window.location.hash;
+  if (hash.includes('access_token')) {
+    const params = new URLSearchParams(hash.slice(1));
+    const token = params.get('access_token');
+    if (token) {
+      state.gmailToken = token;
+      // Fetch the user's email address from Gmail
+      try {
+        const profileResp = await fetch('https://www.googleapis.com/gmail/v1/users/me/profile', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (profileResp.ok) {
+          const profile = await profileResp.json();
+          state.gmailEmail = profile.emailAddress || '';
+        }
+      } catch(e) {}
+      saveState();
+      // Remove the token from the URL bar
+      history.replaceState(null, '', window.location.pathname);
+      showToast('Gmail connected!', 'success');
+    }
+  }
+
+  updateGmailBadge();
+
   if (state.isSetup) {
-    updateGmailBadge();
     goTo('screenUpload');
   } else {
     // Pre-fill defaults for Jason
@@ -528,19 +567,18 @@ function saveSetup() {
 }
 // ── Gmail OAuth ───────────────────────────────────────────────────────────────
 function connectGmail() {
-  if (GOOGLE_CLIENT_ID === '716790622479-jus06skpr00jncvikn8q26m819tgq18i.apps.googleusercontent.com') {
+  if (GOOGLE_CLIENT_ID === 'YOUR_GOOGLE_CLIENT_ID_HERE') {
     // Demo mode — simulate connection
     state.gmailToken = 'DEMO_TOKEN';
     state.gmailEmail = 'jason.r.copeland@gmail.com';
     saveState();
     updateGmailBadge();
     showToast('Gmail connected (demo mode)', 'success');
-    // Update setup screen hint
     const btn = document.querySelector('.gmail-connect-btn');
     if (btn) btn.textContent = '✓ Gmail connected — jason.r.copeland@gmail.com';
     return;
   }
-  // Real OAuth flow
+  // Redirect flow — works on all browsers including iPhone Safari
   const params = new URLSearchParams({
     client_id:     GOOGLE_CLIENT_ID,
     redirect_uri:  window.location.origin + window.location.pathname,
@@ -548,37 +586,8 @@ function connectGmail() {
     scope:         GMAIL_SCOPE,
     prompt:        'select_account',
   });
-  const popup = window.open(
-    `https://accounts.google.com/o/oauth2/v2/auth?${params}`,
-    'gmail_auth', 'width=500,height=600'
-  );
-  window.addEventListener('message', function handler(e) {
-    if (e.data?.type === 'gmail_token') {
-      state.gmailToken = e.data.token;
-      state.gmailEmail = e.data.email;
-      saveState();
-      updateGmailBadge();
-      showToast('Gmail connected!', 'success');
-      window.removeEventListener('message', handler);
-    }
-  });
+  window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
 }
-// Handle OAuth redirect (if same-page redirect)
-(function handleOAuthRedirect() {
-  const hash = window.location.hash;
-  if (hash.includes('access_token')) {
-    const params = new URLSearchParams(hash.slice(1));
-    const token = params.get('access_token');
-    if (token) {
-      state.gmailToken = token;
-      saveState();
-      if (window.opener) {
-        window.opener.postMessage({ type: 'gmail_token', token }, '*');
-        window.close();
-      }
-    }
-  }
-})();
 function updateGmailBadge() {
   const dot   = document.getElementById('gmailDot');
   const label = document.getElementById('gmailLabel');
@@ -602,12 +611,25 @@ function handleFile(file) {
 }
 // ── AI Extraction ─────────────────────────────────────────────────────────────
 async function scanReceipt(file) {
+  if (!state.anthropicKey) {
+    populateReview(file, {
+      merchant: '', date: '', amount: null,
+      category: 'Other', splitCharge: false, splitAmounts: [],
+      confidence: 'low', confidenceNote: 'No API key — add it in ⚙ Settings to enable AI reading'
+    });
+    return;
+  }
   const base64 = await toBase64(file);
   const isPdf  = file.type === 'application/pdf';
   try {
     const resp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': state.anthropicKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 1000,
@@ -796,17 +818,19 @@ function showSuccess(filename) {
 }
 // ── Settings modal ────────────────────────────────────────────────────────────
 function openSettings() {
-  document.getElementById('settingsWorkEmail').value = state.workEmail  || '';
-  document.getElementById('settingsName').value      = state.userName   || '';
-  document.getElementById('settingsGmail').value     = state.gmailEmail || 'Not connected';
+  document.getElementById('settingsWorkEmail').value   = state.workEmail    || '';
+  document.getElementById('settingsName').value        = state.userName     || '';
+  document.getElementById('settingsGmail').value       = state.gmailEmail   || 'Not connected';
+  document.getElementById('settingsAnthropicKey').value = state.anthropicKey || '';
   document.getElementById('settingsModal').classList.add('active');
 }
 function closeSettings() {
   document.getElementById('settingsModal').classList.remove('active');
 }
 function saveSettings() {
-  state.workEmail = document.getElementById('settingsWorkEmail').value.trim();
-  state.userName  = document.getElementById('settingsName').value.trim();
+  state.workEmail    = document.getElementById('settingsWorkEmail').value.trim();
+  state.userName     = document.getElementById('settingsName').value.trim();
+  state.anthropicKey = document.getElementById('settingsAnthropicKey').value.trim();
   saveState();
   closeSettings();
   showToast('Settings saved', 'success');
